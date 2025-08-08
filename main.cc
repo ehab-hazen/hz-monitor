@@ -57,8 +57,8 @@ int main(int argc, char *argv[]) {
             ResourceMonitor resource_monitor(refresh_rate, "metrics.csv");
             std::ofstream fout("monitor.log", std::ios::out);
             resource_monitor.LogMetadata(fout);
-            resource_monitor.Run(stop);
             fout.close();
+            resource_monitor.Run(stop);
         });
 
         int status = 0;
