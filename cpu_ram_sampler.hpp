@@ -19,7 +19,7 @@ class CpuRamSampler {
 
     Metrics Sample() const {
         struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
+        getrusage(RUSAGE_CHILDREN, &usage);
 
         HartSampler::Metrics hart_metrics = hart_sampler_.Sample();
         return {usage, hart_metrics};
