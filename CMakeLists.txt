@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.10)
 project(hz-monitor)
 
 set(CMAKE_CXX_STANDARD 17)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  add_compile_options(-O3)
+endif()
 
 find_library(NVML_LIB NAMES nvidia-ml REQUIRED)
 
