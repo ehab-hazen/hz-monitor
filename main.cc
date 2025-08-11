@@ -13,7 +13,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-uint32_t parse_refresh_rate(int argc, char **argv) {
+uint32_t ParseRefreshRate(int argc, char **argv) {
     uint32_t refresh_rate = 2; // default
 
     for (int i = 1; i < argc; ++i) {
@@ -31,6 +31,18 @@ uint32_t parse_refresh_rate(int argc, char **argv) {
     return refresh_rate;
 }
 
+void WriteRuntime(std::ofstream &fout) {
+    struct rusage usage{};
+    getrusage(RUSAGE_CHILDREN, &usage);
+    double utime = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6;
+    double stime = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+
+    fout << "\n";
+    fout << "User time: " << utime << " s\n";
+    fout << "System time: " << stime << " s\n";
+    fout << "Total time: " << utime + stime << " s\n";
+}
+
 int main(int argc, char *argv[]) {
 
     if (argc < 2) {
@@ -39,7 +51,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    uint32_t refresh_rate = parse_refresh_rate(argc, argv);
+    uint32_t refresh_rate = ParseRefreshRate(argc, argv);
 
     pid_t pid = fork();
     if (pid == -1) {
@@ -63,6 +75,10 @@ int main(int argc, char *argv[]) {
 
         int status = 0;
         waitpid(pid, &status, 0);
+
+        std::ofstream fout("monitor.log", std::ios::app);
+        WriteRuntime(fout);
+
         stop.store(true);
         return 0;
     }
