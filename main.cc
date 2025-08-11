@@ -1,6 +1,7 @@
 #include "resource_monitor.hpp"
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -12,6 +13,9 @@
 #include <string>
 #include <sys/wait.h>
 #include <unistd.h>
+
+using Clock = std::chrono::steady_clock;
+using TimePoint = Clock::time_point;
 
 uint32_t ParseRefreshRate(int argc, char **argv) {
     uint32_t refresh_rate = 2; // default
@@ -31,16 +35,19 @@ uint32_t ParseRefreshRate(int argc, char **argv) {
     return refresh_rate;
 }
 
-void WriteRuntime(std::ofstream &fout) {
+void WriteRuntime(std::ofstream &fout, TimePoint start) {
+    auto end = Clock::now();
+
     struct rusage usage{};
     getrusage(RUSAGE_CHILDREN, &usage);
     double utime = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6;
     double stime = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
 
-    fout << "\n";
     fout << "User time: " << utime << " s\n";
     fout << "System time: " << stime << " s\n";
     fout << "Total time: " << utime + stime << " s\n";
+    fout << "Wall time: " << std::chrono::duration<double>(end - start).count()
+         << "s\n";
 }
 
 int main(int argc, char *argv[]) {
@@ -52,6 +59,7 @@ int main(int argc, char *argv[]) {
     }
 
     uint32_t refresh_rate = ParseRefreshRate(argc, argv);
+    auto start = Clock::now();
 
     pid_t pid = fork();
     if (pid == -1) {
@@ -65,8 +73,8 @@ int main(int argc, char *argv[]) {
         return 1;
     } else {
         std::atomic<bool> stop = false;
-        auto fut = std::async(std::launch::async, [&stop, refresh_rate] {
-            ResourceMonitor resource_monitor(refresh_rate, "metrics.csv");
+        auto fut = std::async(std::launch::async, [&stop, pid, refresh_rate] {
+            ResourceMonitor resource_monitor(pid, refresh_rate, "metrics.csv");
             std::ofstream fout("monitor.log", std::ios::out);
             resource_monitor.LogMetadata(fout);
             fout.close();
@@ -77,7 +85,7 @@ int main(int argc, char *argv[]) {
         waitpid(pid, &status, 0);
 
         std::ofstream fout("monitor.log", std::ios::app);
-        WriteRuntime(fout);
+        WriteRuntime(fout, start);
 
         stop.store(true);
         return 0;

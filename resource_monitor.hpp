@@ -2,21 +2,23 @@
 
 #include "cpu_ram_sampler.hpp"
 #include "gpu_sampler.hpp"
+#include "ram_sampler.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <ios>
 #include <nvml.h>
+#include <sched.h>
 #include <sys/resource.h>
 #include <tuple>
 
 class ResourceMonitor {
 
   public:
-    using CpuRamMetrics = std::vector<CpuRamSampler::Metrics>;
+    using CpuMetrics = std::vector<CpuSampler::Metrics>;
     using GpuMetrics = std::vector<GpuSampler::Metrics>;
-    using Metrics = std::tuple<CpuRamMetrics, GpuMetrics>;
+    using Metrics = std::tuple<CpuMetrics, GpuMetrics>;
 
     ResourceMonitor() = delete;
     ResourceMonitor(const ResourceMonitor &) = delete;
@@ -24,11 +26,14 @@ class ResourceMonitor {
      * @brief Moving an instance will not move the already taken measurements
      * had that instance been already running
      */
-    ResourceMonitor(ResourceMonitor &&rhs) {
+    ResourceMonitor(ResourceMonitor &&rhs)
+        : ram_sampler_(std::move(rhs.ram_sampler_)) {
         refresh_rate_.store(rhs.refresh_rate_.load());
     }
-    ResourceMonitor(uint32_t refresh_rate, const std::string &usage_file)
-        : refresh_rate_(refresh_rate), usage_file_(usage_file) {}
+    ResourceMonitor(pid_t pid, uint32_t refresh_rate,
+                    const std::string &usage_file)
+        : ram_sampler_(pid), refresh_rate_(refresh_rate),
+          usage_file_(usage_file) {}
 
     void SetRefreshRate(uint32_t refresh_rate) {
         refresh_rate_.store(refresh_rate);
@@ -46,12 +51,13 @@ class ResourceMonitor {
             std::this_thread::sleep_for(
                 std::chrono::milliseconds(warmup_preiod_ms));
 
-            CpuRamSampler::Metrics cpu_ram_sample = cpu_ram_sampler_.Sample();
+            CpuSampler::Metrics cpu_sample = cpu_ram_sampler_.Sample();
+            uint64_t ram_sample = ram_sampler_.Sample();
             GpuSampler::Metrics gpu_sample = gpu_sampler_.Sample();
 
             const uint64_t timestamp_ms =
                 (1000.0 * i / refresh_rate_) + warmup_preiod_ms;
-            WriteSample(fout, timestamp_ms, cpu_ram_sample, gpu_sample);
+            WriteSample(fout, timestamp_ms, cpu_sample, ram_sample, gpu_sample);
             ++i;
         }
 
@@ -63,6 +69,7 @@ class ResourceMonitor {
         cpu_ram_sampler_.LogMetadata(fout);
         fout << "\n";
         gpu_sampler_.LogMetadata(fout);
+        fout << "\n";
     }
 
     uint32_t GpuDeviceCount() const { return gpu_sampler_.DeviceCount(); }
@@ -78,8 +85,9 @@ class ResourceMonitor {
     std::atomic<uint32_t> refresh_rate_;
     std::string usage_file_;
 
-    CpuRamSampler cpu_ram_sampler_;
+    CpuSampler cpu_ram_sampler_;
     GpuSampler gpu_sampler_;
+    RamSampler ram_sampler_;
 
     void WriteCsvHeader(std::ofstream &fout) const {
         fout << "timestamp_ms,cpu_user_ms,cpu_sys_ms";
@@ -107,7 +115,8 @@ class ResourceMonitor {
     }
 
     void WriteSample(std::ofstream &out, const uint64_t timestamp_ms,
-                     const CpuRamSampler::Metrics &cpu_sample,
+                     const CpuSampler::Metrics &cpu_sample,
+                     const uint64_t ram_sample,
                      const GpuSampler::Metrics &gpu_sample) const {
 
         uint64_t cpu_user_ms = cpu_sample.usage_.ru_utime.tv_sec * 1000 +
@@ -121,8 +130,7 @@ class ResourceMonitor {
             out << "," << core.usage;
         }
 
-        uint64_t ram_kb = cpu_sample.usage_.ru_maxrss;
-        out << "," << ram_kb;
+        out << "," << ram_sample;
 
         for (const auto &g : gpu_sample) {
             out << "," << g.gpu_ << "," << g.memory_ << ","

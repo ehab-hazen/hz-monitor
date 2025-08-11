@@ -5,7 +5,7 @@
 #include <set>
 #include <sys/resource.h>
 
-class CpuRamSampler {
+class CpuSampler {
 
   public:
     struct Metrics {
@@ -13,9 +13,9 @@ class CpuRamSampler {
         HartSampler::Metrics hardware_threads_;
     };
 
-    CpuRamSampler(const CpuRamSampler &) = delete;
-    CpuRamSampler(CpuRamSampler &&) = delete;
-    CpuRamSampler() : hart_sampler_() {}
+    CpuSampler(const CpuSampler &) = delete;
+    CpuSampler(CpuSampler &&) = delete;
+    CpuSampler() : hart_sampler_() {}
 
     Metrics Sample() const {
         struct rusage usage;
