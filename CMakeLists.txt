@@ -14,7 +14,7 @@ add_executable(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE pthread /usr/lib/x86_64-linux-gnu/libnvidia-ml.so)
+target_link_libraries(${PROJECT_NAME} PRIVATE pthread /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1)
 
 # === Install target ===
 install(TARGETS ${PROJECT_NAME}
