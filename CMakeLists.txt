@@ -9,14 +9,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
   add_compile_options(-O3)
 endif()
 
-find_library(NVML_LIB NAMES nvidia-ml REQUIRED)
-
 add_executable(${PROJECT_NAME}
     main.cc
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(${PROJECT_NAME} ${NVML_LIB} pthread)
+target_link_libraries(${PROJECT_NAME} PRIVATE pthread /usr/lib/x86_64-linux-gnu/libnvidia-ml.so)
 
 # === Install target ===
 install(TARGETS ${PROJECT_NAME}
